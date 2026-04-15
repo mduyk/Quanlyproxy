@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TỔNG QUẢN TRỊ - SHOP 1 & SHOP 2</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <style>
+        :root { --bg: #0d0d16; --card: #161625; --cyan: #00f2ff; --gold: #ffcc00; --red: #ff4444; --green: #00ff88; --blue: #007aff; }
+        body { background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; padding: 20px; margin: 0; }
+        .box { background: var(--card); padding: 20px; border-radius: 15px; border: 1px solid #333; margin-bottom: 20px; }
+        select, textarea { width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: 1px solid #444; background: #000; color: #fff; box-sizing: border-box; outline: none; }
+        textarea { height: 180px; font-family: 'Courier New', monospace; font-size: 13px; }
+        button { border: none; padding: 15px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; transition: 0.3s; background: var(--cyan); color: #000; font-size: 16px; }
+        button:disabled { background: #444; cursor: not-allowed; color: #888; }
+        .result-box { margin-top: 15px; padding: 15px; border-radius: 10px; font-size: 13px; line-height: 1.6; display: none; }
+        .res-info { background: rgba(0, 242, 255, 0.1); border: 1px solid var(--cyan); display: block; }
+        .duplicate-list { color: var(--red); background: rgba(255, 68, 68, 0.1); padding: 10px; border-radius: 8px; margin-top: 10px; max-height: 150px; overflow-y: auto; border: 1px solid var(--red); }
+        .key-item { display: inline-block; background: #331111; padding: 2px 6px; margin: 2px; border-radius: 4px; border: 1px solid #552222; }
+        .flex-row { display: flex; gap: 10px; }
+        .shop-label { font-weight: bold; margin-bottom: 5px; display: block; }
+    </style>
+</head>
+<body>
+
+<div style="max-width: 800px; margin: auto;">
+    <h2 style="color: var(--cyan); text-align: center; margin-bottom: 25px;">HỆ THỐNG QUẢN TRỊ LIÊN SHOP</h2>
+
+    <div class="box">
+        <div class="flex-row">
+            <div style="flex: 1;">
+                <label class="shop-label" style="color:var(--blue)">🏢 Chọn Shop:</label>
+                <select id="target-shop" onchange="updateStats()">
+                    <option value="shop1">SHOP 1 (Delta RSL)</option>
+                    <option value="shop2">SHOP 2 (Dự phòng)</option>
+                </select>
+            </div>
+            <div style="flex: 1;">
+                <label class="shop-label" style="color:var(--gold)">🔑 Loại Key:</label>
+                <select id="key-path">
+                    <option value="ngay">Gói Ngày</option>
+                    <option value="tuan">Gói Tuần</option>
+                    <option value="thang">Gói Tháng</option>
+                    <option value="nam">Gói Năm</option>
+                </select>
+            </div>
+        </div>
+
+        <label style="font-size: 14px; color: #888; margin-top: 10px; display: block;">📌 Dán danh sách Key (Tự động lọc trùng database):</label>
+        <textarea id="key-input" placeholder="Dán key vào đây..."></textarea>
+
+        <button id="btn-add" onclick="processKeys()">LỌC VÀ THÊM VÀO DATABASE</button>
+
+        <div id="result-area" class="result-box res-info">
+            <div id="summary-text"></div>
+            <div id="duplicate-area" style="display:none;">
+                <div style="margin-top: 10px; font-weight: bold; color: var(--red);">⚠️ Các Key đã có trên hệ thống (Bị loại bỏ):</div>
+                <div class="duplicate-list" id="duplicate-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="box">
+        <h3 style="color: var(--gold); margin-top: 0;">📊 Trạng thái kho: <span id="current-view-label" style="color: var(--blue);">SHOP 1</span></h3>
+        <div id="stat-info" style="font-size: 14px; line-height: 2;">Đang tải...</div>
+    </div>
+</div>
+
+<script>
+    const config = {
+        apiKey: "AIzaSyBk6R1TDZeAxh37JQLgL_6Wl0v8m8Sg0",
+        authDomain: "shopctv-61f96.firebaseapp.com",
+        databaseURL: "https://shopctv-61f96-default-rtdb.asia-southeast1.firebasedatabase.app/", 
+        projectId: "shopctv-61f96",
+        appId: "1:610663182342:web:83e255ec7921609395f190"
+    };
+    firebase.initializeApp(config);
+    const db = firebase.database();
+
+    // Cập nhật thống kê theo Shop được chọn
+    function updateStats() {
+        const shop = document.getElementById('target-shop').value;
+        document.getElementById('current-view-label').innerText = shop.toUpperCase();
+        
+        db.ref(`keys/${shop}`).on('value', s => {
+            const d = s.val() || {};
+            const count = (p) => d[p] ? Object.keys(d[p]).length : 0;
+            document.getElementById('stat-info').innerHTML = `
+                🔹 Ngày: <b>${count('ngay')}</b> | 
+                🔹 Tuần: <b>${count('tuan')}</b> | 
+                🔹 Tháng: <b>${count('thang')}</b> | 
+                🔹 Năm: <b>${count('nam')}</b>
+            `;
+        });
+    }
+    updateStats();
+
+    async function processKeys() {
+        const shop = document.getElementById('target-shop').value;
+        const path = document.getElementById('key-path').value;
+        const rawInput = document.getElementById('key-input').value;
+        const btn = document.getElementById('btn-add');
+        const resArea = document.getElementById('result-area');
+        const summary = document.getElementById('summary-text');
+        const dupArea = document.getElementById('duplicate-area');
+        const dupList = document.getElementById('duplicate-list');
+
+        if (!rawInput.trim()) return alert("Sếp chưa dán key!");
+
+        btn.disabled = true;
+        resArea.style.display = "block";
+        summary.innerHTML = `⏳ Đang kiểm tra kho của <b>${shop.toUpperCase()}</b>...`;
+        dupArea.style.display = "none";
+        dupList.innerHTML = "";
+
+        // 1. Tách dòng & Unique đầu vào
+        let inputKeys = rawInput.split('\n').map(k => k.trim()).filter(k => k !== "");
+        let uniqueInput = [...new Set(inputKeys)];
+
+        try {
+            // 2. Lấy kho hiện tại của shop đó
+            const snapshot = await db.ref(`keys/${shop}/${path}`).once('value');
+            const dbData = snapshot.val() || {};
+            const existingKeys = Object.values(dbData);
+
+            // 3. Phân loại
+            const toAdd = [];
+            const dups = [];
+
+            uniqueInput.forEach(key => {
+                if (existingKeys.includes(key)) {
+                    dups.push(key);
+                } else {
+                    toAdd.push(key);
+                }
+            });
+
+            // 4. Kết quả hiển thị
+            summary.innerHTML = `
+                <b style="color: var(--green);">HOÀN TẤT KIỂM TRA:</b><br>
+                - Shop mục tiêu: <b style="color: var(--blue)">${shop.toUpperCase()}</b><br>
+                - Thêm mới: <b style="color: var(--green); font-size: 16px;">${toAdd.length}</b> key.<br>
+                - Trùng lặp: <b style="color: var(--red); font-size: 16px;">${dups.length}</b> key.
+            `;
+
+            if (dups.length > 0) {
+                dupArea.style.display = "block";
+                dups.forEach(k => {
+                    dupList.innerHTML += `<span class="key-item">${k}</span>`;
+                });
+            }
+
+            // 5. Cập nhật
+            if (toAdd.length > 0) {
+                const updates = {};
+                toAdd.forEach(key => {
+                    const newId = db.ref(`keys/${shop}/${path}`).push().key;
+                    updates[`/keys/${shop}/${path}/${newId}`] = key;
+                });
+                await db.ref().update(updates);
+                document.getElementById('key-input').value = "";
+            }
+
+        } catch (e) {
+            console.error(e);
+            alert("Lỗi: Không thể kết nối với hệ thống!");
+        }
+
+        btn.disabled = false;
+    }
+</script>
+</body>
+</html>
